@@ -20,7 +20,7 @@ Ecobee exporter can be controlled by both ENV or CLI flags as described below.
 |----------------------------|-----------------------------|---------------------------- |------------------------------------------------------------------------------------------------------------------|
 | `ECOBEE_LISTEN_ADDRESS`           | `listen-address`            | `:9098`                     | The port for /metrics to listen on |
 | `ECOBEE_APPKEY`                   | `appkey`                    | `<REQUIRED>`                | Your Application API Key |
-| `ECOBEE_CACHEFILE`                     | `cachefile`                      | `/db/cache.ecobee`              | Cache file to store auth credentials |
+| `ECOBEE_CACHEFILE`                     | `cachefile`                      | `/db/auth.cache`              | Cache file to store auth credentials |
 
 ## Usage
 
