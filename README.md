@@ -71,3 +71,11 @@ scrape_configs:
     static_configs:
       - targets: ['ecobee-exporter:9098']
 ```
+
+## Development
+
+If you'd like to build this yourself you can clone this repo and run:
+
+```
+./script/cibuild
+```
