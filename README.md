@@ -14,14 +14,13 @@ own authentication afterwards if you give the program a volume somewhere to stor
 
 ## First time running ecobee exporters, read this
 
-1. Create a new app. To do this sign into the ecobee website and look for the `Developer` page, create a new app there. The API key will be used later.
-2. Create a volume on your host so we can persist authentication cache
-3. Run `docker run -v <volume from step 1>:/db -p 8080:8080 -it billykwooten/ecobee-exporter`
-4. Open a browser and go to http://localhost:8080/metrics or `curl -X GET http://localhost:8080/metrics` from another terminal
-5. Docker will now print a pin like `Pin is "ig7j"`
-6. Go to [https://www.ecobee.com/consumerportal/index.html#/my-apps](https://www.ecobee.com/consumerportal/index.html#/my-apps)
-7. Register your app pin from step 4
-8. You can now run the container in any way you want, as long as you mount in the volume from step 1.
+1. Create a volume on your host so we can persist authentication cache
+2. Run `docker run -v <volume from step 1>:/db -p 9098:9098 -it billykwooten/ecobee-exporter`
+3. Open a browser and go to http://localhost:9098/metrics or `curl -X GET http://localhost:9098/metrics` from another terminal
+4. Docker will now print a pin like `Pin is "ig7j"`
+5. Go to [https://www.ecobee.com/consumerportal/index.html#/my-apps](https://www.ecobee.com/consumerportal/index.html#/my-apps)
+6. Register your app pin from step 4
+7. You can now run the container in any way you want, as long as you mount in the volume from step 1.
 
    Example: [Binary/Docker Run Examples](https://github.com/billykwooten/ecobee_exporter/tree/development#usage)
 

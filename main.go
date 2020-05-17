@@ -29,7 +29,7 @@ import (
 var (
 	app            = kingpin.New("ecobee-exporter", "Ecobee Exporter utilizing Ecobee API").Author("Billy Wooten")
 	addr           = app.Flag("listen-address", "HTTP port to listen on").Envar("ECOBEE_LISTEN_ADDRESS").Default(":9098").String()
-	applicationKey = app.Flag("appkey", "Application API Key").Envar("ECOBEE_APPKEY").Required().String()
+	applicationKey = app.Flag("appkey", "Application API Key").Envar("ECOBEE_APPKEY").Default("p3NbLx6iSYTjXDFHIMtM77SWWPLRuEZ0").String()
 	cacheFile      = app.Flag("cachefile", "Cache file so the exporter can store and sync authorization tokens").Envar("ECOBEE_CACHEFILE").Default("/db/auth.cache").String()
 )
 
@@ -42,7 +42,7 @@ func main() {
 
 	//Create a new instance of the ecobeeCollector and
 	//register it with the prometheus client.
-	ecobeeCollector := collector.EcobeeCollector(ecobee.NewClient(*applicationKey, *cacheFile), "ecobee")
+	ecobeeCollector := collector.NewEcobeeCollector(ecobee.NewClient(*applicationKey, *cacheFile), "ecobee")
 	prometheus.MustRegister(ecobeeCollector)
 
 	//This section will start the HTTP server and expose

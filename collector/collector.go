@@ -32,10 +32,10 @@ type eCollector struct {
 	temperature, humidity, occupancy, inUse, currentHvacMode *prometheus.Desc
 }
 
-// EcobeeCollector returns a new eCollector with the given prefix assigned to all
+// NewEcobeeCollector returns a new eCollector with the given prefix assigned to all
 // metrics. Note that Prometheus metrics must be unique! Don't try to create
 // two Collectors with the same metric prefix.
-func EcobeeCollector(c *ecobee.Client, metricPrefix string) *eCollector {
+func NewEcobeeCollector(c *ecobee.Client, metricPrefix string) *eCollector {
 	d := descs(metricPrefix)
 
 	// fields common across multiple metrics
