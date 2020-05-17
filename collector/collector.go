@@ -93,7 +93,7 @@ func EcobeeCollector(c *ecobee.Client, metricPrefix string) *eCollector {
 		currentHvacMode: d.new(
 			"currenthvacmode",
 			"current hvac mode of thermostat",
-			[]string{"thermostat_id", "thermostat_name", "current_hvac_mode" },
+			[]string{"thermostat_id", "thermostat_name", "current_hvac_mode"},
 		),
 	}
 }
