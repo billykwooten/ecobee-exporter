@@ -1,182 +1,190 @@
-// Copyright 2015 The Prometheus Authors
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-// Package collector includes all individual collectors to gather and export system metrics.
+// Package prometheus provides Prometheus support for ecobee metrics.
 package collector
 
 import (
-	"errors"
 	"fmt"
-	"sync"
+	"strconv"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	log "github.com/sirupsen/logrus"
+
+	"github.com/billykwooten/go-ecobee/ecobee"
 	"github.com/prometheus/client_golang/prometheus"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
-// Namespace defines the common namespace to be used by all metrics.
-const namespace = "ecobee"
+type descs string
 
-var (
-	scrapeDurationDesc = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "scrape", "collector_duration_seconds"),
-		"ecobee-exporter: Duration of a collector scrape.",
-		[]string{"collector"},
-		nil,
-	)
-	scrapeSuccessDesc = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "scrape", "collector_success"),
-		"ecobee-exporter: Whether a collector succeeded.",
-		[]string{"collector"},
-		nil,
-	)
-)
+func (d descs) new(fqName, help string, variableLabels []string) *prometheus.Desc {
+	return prometheus.NewDesc(fmt.Sprintf("%s_%s", d, fqName), help, variableLabels, nil)
+}
 
-const (
-	defaultEnabled  = true
-	defaultDisabled = false
-)
+// eCollector implements prometheus.eCollector to gather ecobee metrics on-demand.
+type eCollector struct {
+	client *ecobee.Client
 
-var (
-	factories        = make(map[string]func(logger log.Logger) (Collector, error))
-	collectorState   = make(map[string]*bool)
-	forcedCollectors = map[string]bool{} // collectors which have been explicitly enabled or disabled
-)
+	// per-query descriptors
+	fetchTime *prometheus.Desc
 
-func registerCollector(collector string, isDefaultEnabled bool, factory func(logger log.Logger) (Collector, error)) {
-	var helpDefaultState string
-	if isDefaultEnabled {
-		helpDefaultState = "enabled"
-	} else {
-		helpDefaultState = "disabled"
+	// runtime descriptors
+	actualTemperature, targetTemperatureMin, targetTemperatureMax *prometheus.Desc
+
+	// sensor descriptors
+	temperature, humidity, occupancy, inUse, currentHvacMode *prometheus.Desc
+}
+
+// EcobeeCollector returns a new eCollector with the given prefix assigned to all
+// metrics. Note that Prometheus metrics must be unique! Don't try to create
+// two Collectors with the same metric prefix.
+func EcobeeCollector(c *ecobee.Client, metricPrefix string) *eCollector {
+	d := descs(metricPrefix)
+
+	// fields common across multiple metrics
+	runtime := []string{"thermostat_id", "thermostat_name"}
+	sensor := append(runtime, "sensor_id", "sensor_name", "sensor_type")
+
+	return &eCollector{
+		client: c,
+
+		// collector metrics
+		fetchTime: d.new(
+			"fetch_time",
+			"elapsed time fetching data via Ecobee API",
+			nil,
+		),
+
+		// thermostat (aka runtime) metrics
+		actualTemperature: d.new(
+			"actual_temperature",
+			"thermostat-averaged current temperature",
+			runtime,
+		),
+		targetTemperatureMax: d.new(
+			"target_temperature_max",
+			"maximum temperature for thermostat to maintain",
+			runtime,
+		),
+		targetTemperatureMin: d.new(
+			"target_temperature_min",
+			"minimum temperature for thermostat to maintain",
+			runtime,
+		),
+
+		// sensor metrics
+		temperature: d.new(
+			"temperature",
+			"temperature reported by a sensor in degrees",
+			sensor,
+		),
+		humidity: d.new(
+			"humidity",
+			"humidity reported by a sensor in percent",
+			sensor,
+		),
+		occupancy: d.new(
+			"occupancy",
+			"occupancy reported by a sensor (0 or 1)",
+			sensor,
+		),
+		inUse: d.new(
+			"in_use",
+			"is sensor being used in thermostat calculations (0 or 1)",
+			sensor,
+		),
+		currentHvacMode: d.new(
+			"currenthvacmode",
+			"current hvac mode of thermostat",
+			sensor,
+		),
 	}
-
-	flagName := fmt.Sprintf("collector.%s", collector)
-	flagHelp := fmt.Sprintf("Enable the %s collector (default: %s).", collector, helpDefaultState)
-	defaultValue := fmt.Sprintf("%v", isDefaultEnabled)
-
-	flag := kingpin.Flag(flagName, flagHelp).Default(defaultValue).Action(collectorFlagAction(collector)).Bool()
-	collectorState[collector] = flag
-
-	factories[collector] = factory
 }
 
-// EcobeeCollector implements the prometheus.Collector interface.
-type EcobeeCollector struct {
-	Collectors map[string]Collector
-	logger     log.Logger
+// Describe dumps all metric descriptors into ch.
+func (c *eCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.fetchTime
+	ch <- c.actualTemperature
+	ch <- c.targetTemperatureMax
+	ch <- c.targetTemperatureMin
+	ch <- c.temperature
+	ch <- c.humidity
+	ch <- c.occupancy
+	ch <- c.inUse
+	ch <- c.currentHvacMode
 }
 
-// collectorFlagAction generates a new action function for the given collector
-// to track whether it has been explicitly enabled or disabled from the command line.
-// A new action function is needed for each collector flag because the ParseContext
-// does not contain information about which flag called the action.
-// See: https://github.com/alecthomas/kingpin/issues/294
-func collectorFlagAction(collector string) func(ctx *kingpin.ParseContext) error {
-	return func(ctx *kingpin.ParseContext) error {
-		forcedCollectors[collector] = true
-		return nil
-	}
-}
-
-// NewEcobeeCollector creates a new EcobeeCollector.
-func NewEcobeeCollector(logger log.Logger, filters ...string) (*EcobeeCollector, error) {
-	f := make(map[string]bool)
-	for _, filter := range filters {
-		enabled, exist := collectorState[filter]
-		if !exist {
-			return nil, fmt.Errorf("missing collector: %s", filter)
-		}
-		if !*enabled {
-			return nil, fmt.Errorf("disabled collector: %s", filter)
-		}
-		f[filter] = true
-	}
-	collectors := make(map[string]Collector)
-	for key, enabled := range collectorState {
-		if *enabled {
-			collector, err := factories[key](log.With(logger, "collector", key))
-			if err != nil {
-				return nil, err
-			}
-			if len(f) == 0 || f[key] {
-				collectors[key] = collector
-			}
-		}
-	}
-	return &EcobeeCollector{Collectors: collectors, logger: logger}, nil
-}
-
-// Describe implements the prometheus.Collector interface.
-func (n EcobeeCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- scrapeDurationDesc
-	ch <- scrapeSuccessDesc
-}
-
-// Collect implements the prometheus.Collector interface.
-func (n EcobeeCollector) Collect(ch chan<- prometheus.Metric) {
-	wg := sync.WaitGroup{}
-	wg.Add(len(n.Collectors))
-	for name, c := range n.Collectors {
-		go func(name string, c Collector) {
-			execute(name, c, ch, n.logger)
-			wg.Done()
-		}(name, c)
-	}
-	wg.Wait()
-}
-
-func execute(name string, c Collector, ch chan<- prometheus.Metric, logger log.Logger) {
-	begin := time.Now()
-	err := c.Update(ch)
-	duration := time.Since(begin)
-	var success float64
-
+// Collect retrieves thermostat data via the ecobee API.
+func (c *eCollector) Collect(ch chan<- prometheus.Metric) {
+	start := time.Now()
+	tt, err := c.client.GetThermostats(ecobee.Selection{
+		SelectionType:  "registered",
+		IncludeSensors: true,
+		IncludeRuntime: true,
+	})
+	elapsed := time.Now().Sub(start)
+	ch <- prometheus.MustNewConstMetric(c.fetchTime, prometheus.GaugeValue, elapsed.Seconds())
 	if err != nil {
-		if IsNoDataError(err) {
-			level.Debug(logger).Log("msg", "collector returned no data", "name", name, "duration_seconds", duration.Seconds(), "err", err)
-		} else {
-			level.Error(logger).Log("msg", "collector failed", "name", name, "duration_seconds", duration.Seconds(), "err", err)
-		}
-		success = 0
-	} else {
-		level.Debug(logger).Log("msg", "collector succeeded", "name", name, "duration_seconds", duration.Seconds())
-		success = 1
+		log.Error(err)
+		return
 	}
-	ch <- prometheus.MustNewConstMetric(scrapeDurationDesc, prometheus.GaugeValue, duration.Seconds(), name)
-	ch <- prometheus.MustNewConstMetric(scrapeSuccessDesc, prometheus.GaugeValue, success, name)
-}
-
-// Collector is the interface a collector has to implement.
-type Collector interface {
-	// Get new metrics and expose them via prometheus registry.
-	Update(ch chan<- prometheus.Metric) error
-}
-
-type typedDesc struct {
-	desc      *prometheus.Desc
-	valueType prometheus.ValueType
-}
-
-func (d *typedDesc) mustNewConstMetric(value float64, labels ...string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(d.desc, d.valueType, value, labels...)
-}
-
-// ErrNoData indicates the collector found no data to collect, but had no other error.
-var ErrNoData = errors.New("collector returned no data")
-
-func IsNoDataError(err error) bool {
-	return err == ErrNoData
+	for _, t := range tt {
+		tFields := []string{t.Identifier, t.Name}
+		if t.Runtime.Connected {
+			ch <- prometheus.MustNewConstMetric(
+				c.actualTemperature, prometheus.GaugeValue, float64(t.Runtime.ActualTemperature)/10, tFields...,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				c.targetTemperatureMax, prometheus.GaugeValue, float64(t.Runtime.DesiredCool)/10, tFields...,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				c.targetTemperatureMin, prometheus.GaugeValue, float64(t.Runtime.DesiredHeat)/10, tFields...,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				c.currentHvacMode, prometheus.GaugeValue, 0, t.Identifier, t.Name, t.Settings.HvacMode,
+			)
+		}
+		for _, s := range t.RemoteSensors {
+			sFields := append(tFields, s.ID, s.Name, s.Type)
+			inUse := float64(0)
+			if s.InUse {
+				inUse = 1
+			}
+			ch <- prometheus.MustNewConstMetric(
+				c.inUse, prometheus.GaugeValue, inUse, sFields...,
+			)
+			for _, sc := range s.Capability {
+				switch sc.Type {
+				case "temperature":
+					if v, err := strconv.ParseFloat(sc.Value, 64); err == nil {
+						ch <- prometheus.MustNewConstMetric(
+							c.temperature, prometheus.GaugeValue, v/10, sFields...,
+						)
+					} else {
+						log.Error(err)
+					}
+				case "humidity":
+					if v, err := strconv.ParseFloat(sc.Value, 64); err == nil {
+						ch <- prometheus.MustNewConstMetric(
+							c.humidity, prometheus.GaugeValue, v, sFields...,
+						)
+					} else {
+						log.Error(err)
+					}
+				case "occupancy":
+					switch sc.Value {
+					case "true":
+						ch <- prometheus.MustNewConstMetric(
+							c.occupancy, prometheus.GaugeValue, 1, sFields...,
+						)
+					case "false":
+						ch <- prometheus.MustNewConstMetric(
+							c.occupancy, prometheus.GaugeValue, 0, sFields...,
+						)
+					default:
+						log.Errorf("unknown sensor occupancy value %q", sc.Value)
+					}
+				default:
+					log.Infof("ignoring sensor capability %q", sc.Type)
+				}
+			}
+		}
+	}
 }
