@@ -39,13 +39,13 @@ Ecobee exporter can be controlled by both ENV or CLI flags as described below.
 Binary Usage
 ```
 # Export ecobee metrics from thermostat
-./ecobee-exporter --appkey mi4o2n54i0510n4510
+./ecobee-exporter
 ```
 
 Docker Usage (recommended method of running)
 ```
 # Export ecobee metrics from thermostat using docker with volume for cache
-docker run -d --restart always --name=ecobee-exporter -v /example/persistancedirectory:/db -p 9098:9098 billykwooten/ecobee-exporter --appkey mi4o2n54i0510n4510
+docker run -d --restart always --name=ecobee-exporter -v /example/persistancedirectory:/db -p 9098:9098 billykwooten/ecobee-exporter
 ```
 
 Docker-compose Usage
@@ -58,8 +58,6 @@ Docker-compose Usage
       - "9098:9098"
     volumes:
       - /volume1/docker/ecobee-exporter/data:/db
-    environment:
-      - ECOBEE_APPKEY=mi4o2n54i0510n4510
 ```
 
 Prometheus Scrape Usage
