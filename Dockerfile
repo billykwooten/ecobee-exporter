@@ -21,4 +21,4 @@ RUN GO111MODULE=on CGO_ENABLED=0 go build -mod vendor -ldflags "$LD_FLAGS" -o /g
 FROM gcr.io/distroless/static
 
 COPY --from=build /go/bin/app /
-ENTRYPOINT ["/app"]
+ENTRYPOINT [ "/app" ]

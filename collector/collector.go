@@ -32,10 +32,10 @@ type eCollector struct {
 	temperature, humidity, occupancy, inUse, currentHvacMode *prometheus.Desc
 }
 
-// EcobeeCollector returns a new eCollector with the given prefix assigned to all
+// NewEcobeeCollector returns a new eCollector with the given prefix assigned to all
 // metrics. Note that Prometheus metrics must be unique! Don't try to create
 // two Collectors with the same metric prefix.
-func EcobeeCollector(c *ecobee.Client, metricPrefix string) *eCollector {
+func NewEcobeeCollector(c *ecobee.Client, metricPrefix string) *eCollector {
 	d := descs(metricPrefix)
 
 	// fields common across multiple metrics
@@ -93,7 +93,7 @@ func EcobeeCollector(c *ecobee.Client, metricPrefix string) *eCollector {
 		currentHvacMode: d.new(
 			"currenthvacmode",
 			"current hvac mode of thermostat",
-			sensor,
+			[]string{"thermostat_id", "thermostat_name", "current_hvac_mode"},
 		),
 	}
 }
@@ -115,9 +115,10 @@ func (c *eCollector) Describe(ch chan<- *prometheus.Desc) {
 func (c *eCollector) Collect(ch chan<- prometheus.Metric) {
 	start := time.Now()
 	tt, err := c.client.GetThermostats(ecobee.Selection{
-		SelectionType:  "registered",
-		IncludeSensors: true,
-		IncludeRuntime: true,
+		SelectionType:   "registered",
+		IncludeSensors:  true,
+		IncludeRuntime:  true,
+		IncludeSettings: true,
 	})
 	elapsed := time.Now().Sub(start)
 	ch <- prometheus.MustNewConstMetric(c.fetchTime, prometheus.GaugeValue, elapsed.Seconds())
