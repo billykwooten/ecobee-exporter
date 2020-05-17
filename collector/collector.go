@@ -118,6 +118,7 @@ func (c *eCollector) Collect(ch chan<- prometheus.Metric) {
 		SelectionType:  "registered",
 		IncludeSensors: true,
 		IncludeRuntime: true,
+		IncludeSettings: true,
 	})
 	elapsed := time.Now().Sub(start)
 	ch <- prometheus.MustNewConstMetric(c.fetchTime, prometheus.GaugeValue, elapsed.Seconds())
