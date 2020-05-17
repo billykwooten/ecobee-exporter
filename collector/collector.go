@@ -115,9 +115,9 @@ func (c *eCollector) Describe(ch chan<- *prometheus.Desc) {
 func (c *eCollector) Collect(ch chan<- prometheus.Metric) {
 	start := time.Now()
 	tt, err := c.client.GetThermostats(ecobee.Selection{
-		SelectionType:  "registered",
-		IncludeSensors: true,
-		IncludeRuntime: true,
+		SelectionType:   "registered",
+		IncludeSensors:  true,
+		IncludeRuntime:  true,
 		IncludeSettings: true,
 	})
 	elapsed := time.Now().Sub(start)
