@@ -57,6 +57,8 @@ Docker-compose Usage
     restart: always
     ports:
       - "9098:9098"
+    volumes:
+      - /volume1/docker/ecobee-exporter/data:/db
     environment:
       - ECOBEE_APPKEY=mi4o2n54i0510n4510
 ```
