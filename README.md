@@ -21,7 +21,9 @@ own authentication afterwards if you give the program a volume somewhere to stor
 5. Docker will now print a pin like `Pin is "ig7j"`
 6. Go to [https://www.ecobee.com/consumerportal/index.html#/my-apps](https://www.ecobee.com/consumerportal/index.html#/my-apps)
 7. Register your app pin from step 4
-8. You can now run the container in any way you want, as long as you mount in the volume from step 1. Example: [example](https://github.com/billykwooten/ecobee_exporter/tree/development#usage)
+8. You can now run the container in any way you want, as long as you mount in the volume from step 1.
+
+   Example: [Binary/Docker Run Examples](https://github.com/billykwooten/ecobee_exporter/tree/development#usage)
 
 ## Configuration
 
