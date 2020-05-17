@@ -16,7 +16,7 @@ own authentication afterwards if you give the program a volume somewhere to stor
 
 1. Create a volume on your host so we can persist authentication cache
 2. docker run -v <volume from step 1>:/db -p 8080:8080 -it billykwooten/ecobee-exporter
-3. Open a browser and go to http://localhost:8080/metrics or `curl -X GET http://localhost:8080/metrics from another terminal`
+3. Open a browser and go to http://localhost:8080/metrics or `curl -X GET http://localhost:8080/metrics` from another terminal
 4. Docker will now print a pin like `Pin is "ig7j"`
 5. Go to [https://www.ecobee.com/consumerportal/index.html#/my-apps](https://www.ecobee.com/consumerportal/index.html#/my-apps)
 6. Register your app pin from step 4
