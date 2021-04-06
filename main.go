@@ -20,7 +20,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/billykwooten/ecobee-exporter/collector"
-	"github.com/billykwooten/go-ecobee/ecobee"
+	"github.com/rspier/go-ecobee/ecobee"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/alecthomas/kingpin.v2"
