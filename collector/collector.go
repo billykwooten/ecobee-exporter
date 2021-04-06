@@ -8,7 +8,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/rspier/go-ecobee/ecobee"
+	"github.com/billykwooten/go-ecobee/ecobee"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
