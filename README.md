@@ -49,7 +49,7 @@ Binary Usage
 Docker Usage (recommended method of running)
 ```
 # Export ecobee metrics from thermostat using docker with volume for cache
-docker run -d --restart always --name=ecobee-exporter -v /example/persistancedirectory:/db -p 9098:9098 billykwooten/ecobee-exporter
+docker run -d --restart always --name=ecobee-exporter -v /example/persistancedirectory:/db -p 9098:9098 billykwooten/ecobee-exporter --appkey appkey p3NbLx6iSYTjXDFHIMtM77SWWPLRuEZ0
 ```
 
 Docker-compose Usage
