@@ -26,7 +26,7 @@ type eCollector struct {
 	fetchTime *prometheus.Desc
 
 	// runtime descriptors
-	actualTemperature, targetTemperatureMin, targetTemperatureMax *prometheus.Desc
+	actualTemperature, targetTemperatureMin, targetTemperatureMax, lastIntervalRuntime, lastIntervalEnergizedStage *prometheus.Desc
 
 	// sensor descriptors
 	temperature, humidity, occupancy, inUse, currentHvacMode *prometheus.Desc
@@ -67,6 +67,16 @@ func NewEcobeeCollector(c *ecobee.Client, metricPrefix string) *eCollector {
 			"target_temperature_min",
 			"minimum temperature for thermostat to maintain",
 			runtime,
+		),
+		lastIntervalRuntime: d.new(
+			"last_interval_runtime",
+			"last (latest reported) interval runtime of given stage mechanism (seconds, 0-300)",
+			[]string{"thermostat_id", "thermostat_name", "stage_name", "stage_mechanism"},
+		),
+		lastIntervalEnergizedStage: d.new(
+			"last_interval_energized_state",
+			"last (latest reported) interval energized stage (one of: heatStage10n, heatStage20n, heatStage30n, heatOff, compressorCoolStage10n, compressorCoolStage20n, compressorCoolOff, compressorHeatStage10n, compressorHeatStage20n, compressorHeatOff, economyCycle",
+			[]string{"thermostat_id", "thermostat_name", "stage"},
 		),
 
 		// sensor metrics
@@ -109,16 +119,18 @@ func (c *eCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.occupancy
 	ch <- c.inUse
 	ch <- c.currentHvacMode
+	ch <- c.lastIntervalRuntime
 }
 
 // Collect retrieves thermostat data via the ecobee API.
 func (c *eCollector) Collect(ch chan<- prometheus.Metric) {
 	start := time.Now()
 	tt, err := c.client.GetThermostats(ecobee.Selection{
-		SelectionType:   "registered",
-		IncludeSensors:  true,
-		IncludeRuntime:  true,
-		IncludeSettings: true,
+		SelectionType:          "registered",
+		IncludeSensors:         true,
+		IncludeRuntime:         true,
+		IncludeSettings:        true,
+		IncludeExtendedRuntime: true,
 	})
 	elapsed := time.Now().Sub(start)
 	ch <- prometheus.MustNewConstMetric(c.fetchTime, prometheus.GaugeValue, elapsed.Seconds())
@@ -138,9 +150,51 @@ func (c *eCollector) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(
 				c.targetTemperatureMin, prometheus.GaugeValue, float64(t.Runtime.DesiredHeat)/10, tFields...,
 			)
+
+			// API returns last 3 intervals; we're only interested in the last (latest) one
+			lastIndex := 2
+
+			ch <- prometheus.MustNewConstMetric(
+				c.lastIntervalRuntime, prometheus.GaugeValue, float64(t.ExtendedRuntime.HeatPump1[lastIndex]), t.Identifier, t.Name, "heatStage1On", "heatPump1",
+			)
+			ch <- prometheus.MustNewConstMetric(
+				c.lastIntervalRuntime, prometheus.GaugeValue, float64(t.ExtendedRuntime.HeatPump2[lastIndex]), t.Identifier, t.Name, "heatStage2On", "heatPump2",
+			)
+			ch <- prometheus.MustNewConstMetric(
+				c.lastIntervalRuntime, prometheus.GaugeValue, float64(t.ExtendedRuntime.AuxHeat1[lastIndex]), t.Identifier, t.Name, "heatStage1On", "auxHeat1",
+			)
+			ch <- prometheus.MustNewConstMetric(
+				c.lastIntervalRuntime, prometheus.GaugeValue, float64(t.ExtendedRuntime.AuxHeat2[lastIndex]), t.Identifier, t.Name, "heatStage2On", "auxHeat2",
+			)
+			ch <- prometheus.MustNewConstMetric(
+				c.lastIntervalRuntime, prometheus.GaugeValue, float64(t.ExtendedRuntime.Cool1[lastIndex]), t.Identifier, t.Name, "compressorCoolStage1On", "cool1",
+			)
+			ch <- prometheus.MustNewConstMetric(
+				c.lastIntervalRuntime, prometheus.GaugeValue, float64(t.ExtendedRuntime.Cool2[lastIndex]), t.Identifier, t.Name, "compressorCoolStage2On", "cool2",
+			)
+			ch <- prometheus.MustNewConstMetric(
+				c.lastIntervalRuntime, prometheus.GaugeValue, float64(t.ExtendedRuntime.Fan[lastIndex]), t.Identifier, t.Name, "fan", "fan",
+			)
+			ch <- prometheus.MustNewConstMetric(
+				c.lastIntervalRuntime, prometheus.GaugeValue, float64(t.ExtendedRuntime.Humidifier[lastIndex]), t.Identifier, t.Name, "humidifier", "humidifier",
+			)
+			ch <- prometheus.MustNewConstMetric(
+				c.lastIntervalRuntime, prometheus.GaugeValue, float64(t.ExtendedRuntime.Dehumidifier[lastIndex]), t.Identifier, t.Name, "dehumidifier", "dehumidifier",
+			)
+			ch <- prometheus.MustNewConstMetric(
+				c.lastIntervalRuntime, prometheus.GaugeValue, float64(t.ExtendedRuntime.Economizer[lastIndex]), t.Identifier, t.Name, "economizer", "economizer",
+			)
+			ch <- prometheus.MustNewConstMetric(
+				c.lastIntervalRuntime, prometheus.GaugeValue, float64(t.ExtendedRuntime.Ventilator[lastIndex]), t.Identifier, t.Name, "ventilator", "ventilator",
+			)
+			ch <- prometheus.MustNewConstMetric(
+				c.lastIntervalEnergizedStage, prometheus.GaugeValue, 0, t.Identifier, t.Name, t.ExtendedRuntime.HvacMode[lastIndex],
+			)
+
 			ch <- prometheus.MustNewConstMetric(
 				c.currentHvacMode, prometheus.GaugeValue, 0, t.Identifier, t.Name, t.Settings.HvacMode,
 			)
+
 		}
 		for _, s := range t.RemoteSensors {
 			sFields := append(tFields, s.ID, s.Name, s.Type)
