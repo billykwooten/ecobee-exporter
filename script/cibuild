@@ -37,7 +37,8 @@ GO111MODULE=on go mod verify
 
 taskProgress "docker"
 docker buildx create --use
-docker buildx build --build-arg LD_FLAGS="$LD_FLAGS" -f Dockerfile --platform linux/amd64,linux/arm64/v8 -t "${IMAGE_NAME}:${IMAGE_TAG}" .
+docker buildx build --build-arg LD_FLAGS="$LD_FLAGS" -f Dockerfile --platform linux/arm64/v8 --load -t "${IMAGE_NAME}:${IMAGE_TAG}-arm64" .
+docker buildx build --build-arg LD_FLAGS="$LD_FLAGS" -f Dockerfile --platform linux/amd64 --load -t "${IMAGE_NAME}:${IMAGE_TAG}-amd64" .
 
 echo "==> Finished building Docker image for ${IMAGE_NAME}:${IMAGE_TAG}"
 
