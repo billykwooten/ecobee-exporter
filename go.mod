@@ -10,4 +10,4 @@ require (
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
 
-replace github.com/billykwooten/ecobee-exporter => github.com/ejsuncy/ecobee-exporter v0.0.0-20230115023424-836b742f39cf
+replace github.com/billykwooten/ecobee-exporter => github.com/ejsuncy/ecobee-exporter main-fork
