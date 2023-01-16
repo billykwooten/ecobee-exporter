@@ -30,6 +30,11 @@ type eCollector struct {
 
 	// sensor descriptors
 	temperature, humidity, occupancy, inUse, currentHvacMode *prometheus.Desc
+
+	// weather descriptors
+	forecastTemperature, forecastCondition, forecastPressure, forecastRelativeHumidity, forecastDewpoint, forecastVisibility,
+	forecastWindSpeed, forecastWindGust, forecastWindDirection, forecastWindBearing, forecastProbPrecip, forecastTempHigh,
+	forecastTempLow, forecastSky *prometheus.Desc
 }
 
 // NewEcobeeCollector returns a new eCollector with the given prefix assigned to all
@@ -105,6 +110,78 @@ func NewEcobeeCollector(c *ecobee.Client, metricPrefix string) *eCollector {
 			"current hvac mode of thermostat",
 			[]string{"thermostat_id", "thermostat_name", "current_hvac_mode"},
 		),
+
+		// weather metrics
+		forecastTemperature: d.new(
+			"forecast_temperature",
+			"weather forecast temperature for the thermostat",
+			runtime,
+		),
+		forecastCondition: d.new(
+			"forecast_condition",
+			"weather forecast condition for the thermostat",
+			[]string{"thermostat_id", "thermostat_name", "name"},
+		),
+		forecastPressure: d.new(
+			"forecast_pressure",
+			"weather forecast barometric pressure for the thermostat",
+			runtime,
+		),
+		forecastRelativeHumidity: d.new(
+			"forecast_relative_humidity",
+			"weather forecast relative humidity for the thermostat (as a percent)",
+			runtime,
+		),
+		forecastDewpoint: d.new(
+			"forecast_dewpoint",
+			"weather forecast dewpoint temperature for the thermostat",
+			runtime,
+		),
+		forecastVisibility: d.new(
+			"forecast_visibility",
+			"weather forecast visibility for the thermostat (in meters, 0 - 70,000)",
+			runtime,
+		),
+		forecastWindSpeed: d.new(
+			"forecast_wind_speed",
+			"weather forecast wind speed for the thermostat (in mph*1000)",
+			runtime,
+		),
+		forecastWindGust: d.new(
+			"forecast_wind_gust",
+			"weather forecast wind gust for the thermostat (in mph*1000)",
+			runtime,
+		),
+		forecastWindDirection: d.new(
+			"forecast_wind_direction",
+			"weather forecast wind direction for the thermostat",
+			[]string{"thermostat_id", "thermostat_name", "direction"},
+		),
+		forecastWindBearing: d.new(
+			"forecast_wind_bearing",
+			"weather forecast wind bearing for the thermostat",
+			runtime,
+		),
+		forecastProbPrecip: d.new(
+			"forecast_probability_of_precipitation",
+			"weather forecast probability of precipitation for the thermostat",
+			runtime,
+		),
+		forecastTempHigh: d.new(
+			"forecast_temp_high",
+			"weather forecast high temperature for the day for the thermostat",
+			runtime,
+		),
+		forecastTempLow: d.new(
+			"forecast_temp_low",
+			"weather forecast low temperature for the day for the thermostat",
+			runtime,
+		),
+		forecastSky: d.new(
+			"forecast_sky",
+			"weather forecast sky condition for the thermostat",
+			[]string{"thermostat_id", "thermostat_name", "condition"},
+		),
 	}
 }
 
@@ -129,6 +206,7 @@ func (c *eCollector) Collect(ch chan<- prometheus.Metric) {
 		SelectionType:          "registered",
 		IncludeSensors:         true,
 		IncludeRuntime:         true,
+		IncludeWeather:         true,
 		IncludeSettings:        true,
 		IncludeExtendedRuntime: true,
 	})
@@ -195,6 +273,67 @@ func (c *eCollector) Collect(ch chan<- prometheus.Metric) {
 				c.currentHvacMode, prometheus.GaugeValue, 0, t.Identifier, t.Name, t.Settings.HvacMode,
 			)
 
+			// Weather
+			// The first forecast is the most accurate per API docs
+			forecast := t.Weather.Forecasts[0]
+
+			ch <- prometheus.MustNewConstMetric(
+				c.forecastTemperature, prometheus.GaugeValue, float64(forecast.Temperature)/10, tFields...,
+			)
+
+			ch <- prometheus.MustNewConstMetric(
+				c.forecastCondition, prometheus.GaugeValue, 1, t.Identifier, t.Name, forecast.Condition,
+			)
+
+			ch <- prometheus.MustNewConstMetric(
+				c.forecastPressure, prometheus.GaugeValue, float64(forecast.Pressure), tFields...,
+			)
+
+			ch <- prometheus.MustNewConstMetric(
+				c.forecastRelativeHumidity, prometheus.GaugeValue, float64(forecast.RelativeHumidity), tFields...,
+			)
+
+			ch <- prometheus.MustNewConstMetric(
+				c.forecastDewpoint, prometheus.GaugeValue, float64(forecast.Dewpoint)/10, tFields...,
+			)
+
+			ch <- prometheus.MustNewConstMetric(
+				c.forecastVisibility, prometheus.GaugeValue, float64(forecast.Visibility), tFields...,
+			)
+
+			ch <- prometheus.MustNewConstMetric(
+				c.forecastWindSpeed, prometheus.GaugeValue, float64(forecast.WindSpeed), tFields...,
+			)
+
+			ch <- prometheus.MustNewConstMetric(
+				c.forecastWindGust, prometheus.GaugeValue, float64(forecast.WindGust), tFields...,
+			)
+
+			ch <- prometheus.MustNewConstMetric(
+				c.forecastWindDirection, prometheus.GaugeValue, 1, t.Identifier, t.Name, forecast.WindDirection,
+			)
+
+			ch <- prometheus.MustNewConstMetric(
+				c.forecastWindBearing, prometheus.GaugeValue, float64(forecast.WindBearing), tFields...,
+			)
+
+			ch <- prometheus.MustNewConstMetric(
+				c.forecastProbPrecip, prometheus.GaugeValue, float64(forecast.Pop), tFields...,
+			)
+
+			ch <- prometheus.MustNewConstMetric(
+				c.forecastTempHigh, prometheus.GaugeValue, float64(forecast.TempHigh)/10, tFields...,
+			)
+
+			ch <- prometheus.MustNewConstMetric(
+				c.forecastTempLow, prometheus.GaugeValue, float64(forecast.TempLow)/10, tFields...,
+			)
+
+			skyConditionStr := getSkyConditions()[int(forecast.Sky)]
+			ch <- prometheus.MustNewConstMetric(
+				c.forecastSky, prometheus.GaugeValue, 1, t.Identifier, t.Name, skyConditionStr,
+			)
+
 		}
 		for _, s := range t.RemoteSensors {
 			sFields := append(tFields, s.ID, s.Name, s.Type)
@@ -241,5 +380,45 @@ func (c *eCollector) Collect(ch chan<- prometheus.Metric) {
 				}
 			}
 		}
+	}
+}
+
+func getSkyConditions() []string {
+	return []string{
+		"UNDEFINED",
+		"SUNNY",
+		"CLEAR",
+		"MOSTLY_SUNNY",
+		"MOSTLY_CLEAR",
+		"HAZY_SUNSHINE",
+		"HAZE",
+		"PASSING_CLOUDS",
+		"MORE_SUN_THAN_CLOUDS",
+		"SCATTERED_CLOUDS",
+		"PARTLY_CLOUDY",
+		"A_MIXTURE_OF_SUN_AND_CLOUDS",
+		"HIGH_LEVEL_CLOUDS",
+		"MORE_CLOUDS_THAN_SUN",
+		"PARTLY_SUNNY",
+		"BROKEN_CLOUDS",
+		"MOSTLY_CLOUDY",
+		"CLOUDY",
+		"OVERCAST",
+		"LOW_CLOUDS",
+		"LIGHT_FOG",
+		"FOG",
+		"DENSE_FOG",
+		"ICE_FOG",
+		"SANDSTORM",
+		"DUSTSTORM",
+		"INCREASING_CLOUDINESS",
+		"DECREASING_CLOUDINESS",
+		"CLEARING_SKIES",
+		"BREAKS_OF_SUN_LATE",
+		"EARLY_FOG_FOLLOWED_BY_SUNNY_SKIES",
+		"AFTERNOON_CLOUDS",
+		"MORNING_CLOUDS",
+		"SMOKE",
+		"LOW_LEVEL_HAZE",
 	}
 }
