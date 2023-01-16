@@ -9,7 +9,7 @@ set -o errtrace
 cd "$(dirname "$0")"/..
 ROOT_DIR=$PWD
 
-IMAGE_NAME=ghcr.io/ejsuncy/ecobee-exporter
+IMAGE_NAME=ecobee-exporter
 
 APP_BUILDSTAMP=$(date +%Y%m%d%H%M%S)
 
